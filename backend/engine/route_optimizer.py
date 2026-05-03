@@ -21,9 +21,10 @@ def _triage_priority(t: str) -> int:
 
 def optimize_route(patients) -> dict:
     """
-    Simplified Genetic Algorithm:
+    Priority-constrained route optimizer:
     - RED patients always come first (hard constraint)
-    - Within each triage tier, apply nearest-neighbour + 2-opt improvement
+    - Within each triage tier, apply nearest-neighbour greedy ordering
+    - Followed by 2-opt local search improvement across non-RED patients
     - Returns ordered list with estimated walk time
     """
     if not patients:

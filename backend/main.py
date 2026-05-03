@@ -96,16 +96,18 @@ def get_route(asha_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/incentives/{asha_id}")
 def get_incentives(asha_id: int, db: Session = Depends(get_db)):
-    rows = db.query(models.Incentive, models.Patient).join(
+    rows = db.query(models.Incentive, models.Patient, models.Visit).join(
         models.Patient, models.Incentive.patient_id == models.Patient.id
+    ).join(
+        models.Visit, models.Incentive.visit_id == models.Visit.id
     ).filter(models.Incentive.asha_id == asha_id).all()
 
     items = []
     total_pending = 0.0
-    for incentive, patient in rows:
+    for incentive, patient, visit in rows:
         items.append({
             "patient_name": patient.name,
-            "visit_date": incentive.visit_id and str(datetime.utcnow().date()),
+            "visit_date": str(visit.visit_date.date()) if visit and visit.visit_date else None,
             "amount": incentive.amount,
             "status": incentive.status,
         })

@@ -14,8 +14,12 @@ export default function Dashboard() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">Good morning, Sunita 👋</h1>
       <div className="grid grid-cols-3 gap-4">
-        {[['🔴 High Risk', counts.RED, 'red'], ['🟡 Moderate', counts.YELLOW, 'yellow'], ['🟢 Routine', counts.GREEN, 'green']].map(([label, val, color]) => (
-          <div key={label} className={`bg-${color}-50 border border-${color}-200 rounded-xl p-4 text-center`}>
+        {[
+          ['🔴 High Risk', counts.RED,    'bg-red-50 border-red-200 text-red-800'],
+          ['🟡 Moderate',  counts.YELLOW, 'bg-yellow-50 border-yellow-200 text-yellow-800'],
+          ['🟢 Routine',   counts.GREEN,  'bg-green-50 border-green-200 text-green-800'],
+        ].map(([label, val, cls]) => (
+          <div key={label} className={`${cls} border rounded-xl p-4 text-center`}>
             <p className="text-3xl font-bold text-gray-800">{val}</p>
             <p className="text-sm text-gray-500 mt-1">{label}</p>
           </div>

@@ -10,7 +10,7 @@ def _get_features(patient) -> np.ndarray:
     # Normalise: BP>140/90 = danger, Hb<10 = anaemic, age<20 or >35 = risk
     bp_flag   = 1 if (patient.bp_systolic > 140 or patient.bp_diastolic > 90) else 0
     anemia    = 1 if patient.haemoglobin < 10 else 0
-    age_risk  = 1 if (patient.age < 20 or patient.age > 35) else 0
+    age_risk  = 1 if (patient.age < 20 or patient.age >= 35) else 0
     ga_risk   = 1 if patient.gestational_age > 34 else 0  # near term
 
     return np.array([[
@@ -48,7 +48,7 @@ def _train_and_save():
     prev_hrp       = np.random.randint(0, 4, N).astype(float)
     bp_flag        = (bp_sys > 140).astype(float)
     anemia         = (hb < 10).astype(float)
-    age_risk       = ((age < 20) | (age > 35)).astype(float)
+    age_risk       = ((age < 20) | (age >= 35)).astype(float)
     ga_risk        = (gest_age > 34).astype(float)
 
     X = np.column_stack([age, gest_age, bp_sys, bp_dia, hb, prev_hrp,
@@ -73,6 +73,14 @@ def predict_risk(patient) -> dict:
     global _MODEL
     if _MODEL is None:
         _MODEL = _load_or_train_model()
+
+    # Guard against obviously invalid inputs
+    if patient.age is None or patient.age <= 0:
+        raise ValueError(f"Invalid age: {patient.age}")
+    if patient.haemoglobin is None or patient.haemoglobin <= 0:
+        raise ValueError(f"Invalid haemoglobin: {patient.haemoglobin}")
+    if patient.bp_systolic is None or patient.bp_systolic <= 0:
+        raise ValueError(f"Invalid bp_systolic: {patient.bp_systolic}")
 
     features = _get_features(patient)
     prob = float(_MODEL.predict_proba(features)[0][1])

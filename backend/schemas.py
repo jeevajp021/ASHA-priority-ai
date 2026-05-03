@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 
 class PatientCreate(BaseModel):
@@ -12,6 +12,13 @@ class PatientCreate(BaseModel):
     prev_hrp: int = 0
     lat: float
     lng: float
+
+    @field_validator("age", "gestational_age", "bp_systolic", "bp_diastolic", "haemoglobin")
+    @classmethod
+    def must_be_positive(cls, v, info):
+        if v <= 0:
+            raise ValueError(f"{info.field_name} must be a positive number")
+        return v
 
 class VisitCreate(BaseModel):
     patient_id: int
