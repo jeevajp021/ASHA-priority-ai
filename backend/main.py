@@ -83,7 +83,8 @@ def log_visit(body: schemas.VisitCreate, db: Session = Depends(get_db)):
 def get_route(asha_id: int, db: Session = Depends(get_db)):
     patients = db.query(models.Patient).filter(
         models.Patient.asha_id == asha_id,
-        models.Patient.lat != None
+        models.Patient.lat != None,
+        models.Patient.triage != None          # only route scored patients
     ).all()
 
     if not patients:

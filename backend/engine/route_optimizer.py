@@ -52,7 +52,9 @@ def optimize_route(patients) -> dict:
 
     ordered = []
     for tier in ["RED", "YELLOW", "GREEN"]:
-        group = tiers[tier]
+        # Sort by priority_score descending BEFORE nearest-neighbour
+        # so the highest-score patient is the nn_order starting anchor
+        group = sorted(tiers[tier], key=lambda p: p.priority_score or 0.0, reverse=True)
         if group:
             idxs = nn_order(group)
             ordered.extend([group[i] for i in idxs])
