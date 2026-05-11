@@ -44,36 +44,64 @@ ASHA-Priority AI transforms raw maternal health data into:
 
 ### ✔ Features Implemented
 
-#### 🧠 Risk Prediction Engine
+### 🧠 Risk Prediction Engine
+Evaluates:
 
-* Evaluates:
+- Blood pressure
+- Haemoglobin levels
+- Glucose levels
+- Food intake behavior
+- Family history
+- Age and gestational stage
+- Previous pregnancy history
 
-  * Blood pressure
-  * Haemoglobin levels
-  * Age and gestational stage
-  * Previous pregnancy history
-* Outputs:
+Outputs:
 
-  * Priority Score
-  * Risk Category (RED / YELLOW / GREEN)
-* Built using:
+- Priority Score
+- Risk Category (RED / YELLOW / GREEN)
+- Contributing Risk Factors
 
-  * XGBoost (trained on synthetic data)
-  * Rule-based weighting for interpretability
+Built using:
+
+- Hybrid scoring approach
+  - Rule-based clinical prioritization
+  - ML-assisted scoring using synthetic training data
+- XGBoost (trained on synthetic data)
+- Threshold-based clinical overrides for explainability and consistency
+
+Additional Features:
+
+- Explainable risk reasoning
+- Deterministic scoring for demo consistency
+- Risk change tracking
 
 ---
 
-#### 🗺 Smart Route Optimization
+### 🗺 Smart Route Optimization
+Prioritizes high-risk (RED) patients first.
 
-* Prioritizes high-risk (RED) patients first
-* Minimizes travel distance using:
+Routing logic includes:
 
-  * Nearest Neighbor approach
-  * 2-opt route refinement
-* Output:
+- Priority-aware triage sorting
+- Priority score ordering within same triage
+- Nearest Neighbor route optimization
+- 2-opt local route refinement
 
-  * Ordered visit path
-  * Estimated travel time
+Visualization Features:
+
+- Numbered visit sequence
+- Start and end route markers
+- Ordered patient traversal display
+
+Outputs:
+
+- Ordered visit path
+- Estimated travel distance
+- Route sequence clarity for field workers
+
+Current Limitation:
+
+- Distance estimation is coordinate-based and does not yet use real-world road networks or live map routing APIs.
 
 ---
 
@@ -84,6 +112,43 @@ ASHA-Priority AI transforms raw maternal health data into:
 
   * PENDING / PROCESSING / PAID
 * Provides visibility into compensation workflow
+
+---
+
+### 🗂 Patient Workflow & Data Management
+
+Additional workflow-oriented healthcare features include:
+
+- Patient visit history tracking
+- Last visit and next follow-up scheduling
+- Record status management
+  - ACTIVE
+  - FOLLOW_UP_REQUIRED
+  - COMPLETED
+- Risk progression tracking
+- Search and filter support for patient management
+
+The system is designed to simulate structured healthcare workflow management rather than functioning as a basic CRUD application.
+
+---
+
+### 🔐 Healthcare Data Protection Features
+
+Since healthcare information is highly sensitive, the system incorporates foundational security and validation mechanisms suitable for a healthcare workflow prototype.
+
+Implemented Features:
+
+- Username/password authentication
+- Password hashing using bcrypt
+- Role-based access control
+  - ASHA Worker
+  - Supervisor
+  - Admin
+- Audit logging for patient access and updates
+- Input validation and sanitization
+- Sensitive data masking where appropriate
+
+The objective is to demonstrate responsible healthcare data handling without introducing heavy enterprise infrastructure.
 
 ---
 
@@ -105,13 +170,16 @@ The following are **not implemented in this prototype**:
 
 > Focus: Accessibility & Real-world Deployment
 
-Planned enhancements:
+Additional planned enhancements:
 
-* 🎙 Voice input using speech-to-text (regional languages)
-* 📞 IVR system for non-smartphone users
-* 📡 Integration with government health platforms
-* 💳 Real-time incentive disbursement integration
-* 📱 Offline-first edge deployment
+- AI-assisted voice interaction
+- IVR-based accessibility for feature phones
+- OCR-assisted paper-to-digital workflows
+- Real-world map routing integration
+- Multi-domain ASHA healthcare support
+  - Child care
+  - Nutrition tracking
+  - Community health monitoring
 
 ---
 
@@ -275,8 +343,23 @@ npm run dev
 
 ## 🧠 Key Insight
 
-> The system does not replace clinical judgment.
-> It enhances frontline decision-making with structured, data-driven insights.
+>The system does not replace clinical judgment.
+>Instead, it acts as a decision-support layer that helps frontline healthcare workers prioritize field actions using structured clinical indicators, workflow intelligence, and explainable risk scoring.
+
+---
+
+## 📌 Scope Clarification
+
+While ASHA workers manage multiple healthcare responsibilities including child care, nutrition, and disease monitoring, Phase 1 intentionally focuses on maternal healthcare.
+
+This scoped approach enables:
+
+- Deep and accurate prioritization
+- Reliable workflow validation
+- Clear demonstration of decision intelligence
+- Reduced implementation complexity during initial prototyping
+
+The architecture is intentionally designed to be extendable toward broader ASHA workflows in future phases.
 
 ---
 

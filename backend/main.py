@@ -1,12 +1,15 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
+from typing import Optional
+import bcrypt
 
 import models, schemas
 from database import engine, get_db, Base
 from engine.risk_model import predict_risk
 from engine.route_optimizer import optimize_route
+from auth import create_token, get_current_worker, require_role
 
 Base.metadata.create_all(bind=engine)
 
@@ -21,9 +24,25 @@ app.add_middleware(
 
 # ─── PATIENTS ────────────────────────────────────────────
 
-@app.get("/api/patients")
-def list_patients(db: Session = Depends(get_db)):
-    return db.query(models.Patient).all()
+@app.get("/api/patients", response_model=list[schemas.PatientOut])
+def list_patients(
+    triage: Optional[str] = Query(None),
+    record_status: Optional[str] = Query(None),
+    worker: models.AshaWorker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Patient)
+    # ASHA sees only own patients; SUPERVISOR/ADMIN see all
+    if worker.role == "ASHA":
+        q = q.filter(models.Patient.asha_id == worker.id)
+    if triage:
+        q = q.filter(models.Patient.triage == triage.upper())
+    if record_status:
+        q = q.filter(models.Patient.record_status == record_status.upper())
+    patients = q.all()
+    _audit(db, actor_id=worker.id, action="LIST_PATIENTS",
+           detail=f"triage={triage} status={record_status}")
+    return patients
 
 @app.post("/api/patients", status_code=201)
 def create_patient(body: schemas.PatientCreate, db: Session = Depends(get_db)):
@@ -43,18 +62,57 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
 # ─── RISK PREDICTION ─────────────────────────────────────
 
 @app.post("/api/predict")
-def predict(body: schemas.PredictRequest, db: Session = Depends(get_db)):
+def predict(
+    body: schemas.PredictRequest,
+    worker: models.AshaWorker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
     patient = db.query(models.Patient).filter(models.Patient.id == body.patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+    # ASHA can only predict for own patients
+    if worker.role == "ASHA" and patient.asha_id != worker.id:
+        raise HTTPException(status_code=403, detail="Not your patient")
 
     result = predict_risk(patient)
 
+    # Track triage change before overwriting
+    if patient.triage and patient.triage != result["triage"]:
+        patient.previous_triage = patient.triage
     patient.triage = result["triage"]
     patient.priority_score = result["priority_score"]
+    patient.last_visit_date = datetime.utcnow()
+    # Auto-flag follow-up for RED/YELLOW
+    if result["triage"] in ("RED", "YELLOW"):
+        patient.record_status = "FOLLOW_UP_REQUIRED"
     db.commit()
 
+    _audit(db, actor_id=worker.id, action="PREDICT",
+           patient_id=patient.id,
+           detail=f"triage={result['triage']} score={result['priority_score']}")
     return result
+
+@app.patch("/api/patients/{patient_id}/status")
+def update_patient_status(
+    patient_id: int,
+    record_status: str = Query(..., description="ACTIVE | FOLLOW_UP_REQUIRED | COMPLETED"),
+    worker: models.AshaWorker = Depends(get_current_worker),
+    db: Session = Depends(get_db),
+):
+    if record_status not in ("ACTIVE", "FOLLOW_UP_REQUIRED", "COMPLETED"):
+        raise HTTPException(status_code=422, detail="Invalid record_status value")
+    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if worker.role == "ASHA" and patient.asha_id != worker.id:
+        raise HTTPException(status_code=403, detail="Not your patient")
+
+    old_status = patient.record_status
+    patient.record_status = record_status
+    db.commit()
+    _audit(db, actor_id=worker.id, action="UPDATE_STATUS",
+           patient_id=patient_id, detail=f"{old_status} → {record_status}")
+    return {"patient_id": patient_id, "record_status": record_status}
 
 # ─── VISITS ──────────────────────────────────────────────
 
@@ -120,3 +178,54 @@ def get_incentives(asha_id: int, db: Session = Depends(get_db)):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "ASHA-Priority AI"}
+
+# ─── AUTH ────────────────────────────────────────────────────
+
+@app.post("/api/login", response_model=schemas.TokenResponse)
+def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
+    worker = db.query(models.AshaWorker).filter(
+        models.AshaWorker.username == body.username
+    ).first()
+    if not worker or not worker.password_hash:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not bcrypt.checkpw(body.password.encode(), worker.password_hash.encode()):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    _audit(db, actor_id=worker.id, action="LOGIN", detail=f"Login from username={body.username}")
+    return {
+        "access_token": create_token(worker.id, worker.role),
+        "role": worker.role,
+        "worker_id": worker.id,
+        "worker_name": worker.name,
+    }
+
+# ─── AUDIT HELPER ────────────────────────────────────────────
+
+def _audit(db: Session, actor_id: int, action: str,
+           patient_id: int = None, detail: str = None):
+    db.add(models.AuditLog(
+        actor_id=actor_id, action=action,
+        patient_id=patient_id, detail=detail
+    ))
+    db.commit()
+
+@app.get("/api/audit")
+def get_audit_log(
+    patient_id: Optional[int] = Query(None),
+    worker: models.AshaWorker = Depends(require_role("SUPERVISOR", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.AuditLog).order_by(models.AuditLog.timestamp.desc())
+    if patient_id:
+        q = q.filter(models.AuditLog.patient_id == patient_id)
+    logs = q.limit(200).all()
+    return [
+        {
+            "actor_id": l.actor_id,
+            "action": l.action,
+            "patient_id": l.patient_id,
+            "detail": l.detail,
+            "timestamp": l.timestamp.isoformat(),
+        }
+        for l in logs
+    ]

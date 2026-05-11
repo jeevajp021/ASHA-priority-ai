@@ -9,6 +9,7 @@ const FIELDS = [
   FIELD('Systolic BP (mmHg)', 'bp_systolic'),
   FIELD('Diastolic BP (mmHg)', 'bp_diastolic'),
   FIELD('Haemoglobin (g/dL)', 'haemoglobin'),
+  FIELD('Glucose Level (mg/dL)', 'glucose_level', 'number', '90'),
   FIELD('Previous High-Risk Pregnancies', 'prev_hrp'),
   FIELD('Latitude', 'lat', 'number', '21.1458'),
   FIELD('Longitude', 'lng', 'number', '79.0882'),
@@ -20,12 +21,21 @@ export default function PatientForm() {
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState('')
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: parseFloat(e.target.value) })
+  const handleChange = (e) => {
+    const val = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value
+    setForm({ ...form, [e.target.name]: val })
+  }
 
   const handleSubmit = async () => {
+    if (!name.trim()) { alert('Patient name is required'); return }
     setLoading(true)
     try {
-      const patient = await createPatient({ name, asha_id: 1, ...form })
+      const payload = {
+        name, asha_id: 1, ...form,
+        family_history: form.family_history || null,
+        food_intake: form.food_intake || null,
+      }
+      const patient = await createPatient(payload)
       const pid = patient.data.id
       await logVisit({ patient_id: pid, asha_id: 1, lat: form.lat, lng: form.lng })
       const risk = await predictRisk(pid)
@@ -53,6 +63,30 @@ export default function PatientForm() {
               onChange={handleChange} />
           </div>
         ))}
+      </div>
+      {/* New structured clinical fields */}
+      <div className="grid grid-cols-2 gap-3 mt-3">
+        <div>
+          <label className="text-xs text-gray-500">Food Intake</label>
+          <select name="food_intake" onChange={handleChange}
+            className="w-full border rounded-lg px-3 py-2 text-sm mt-1 bg-white">
+            <option value="">— Select —</option>
+            <option value="Good">Good</option>
+            <option value="Moderate">Moderate</option>
+            <option value="Poor">Poor</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500">Family History</label>
+          <select name="family_history" onChange={handleChange}
+            className="w-full border rounded-lg px-3 py-2 text-sm mt-1 bg-white">
+            <option value="">— None —</option>
+            <option value="diabetes">Diabetes</option>
+            <option value="hypertension">Hypertension</option>
+            <option value="pregnancy_complications">Pregnancy Complications</option>
+            <option value="diabetes,hypertension">Diabetes + Hypertension</option>
+          </select>
+        </div>
       </div>
       <button onClick={handleSubmit} disabled={loading}
         className="mt-5 w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-3 rounded-xl transition">
